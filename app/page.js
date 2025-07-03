@@ -1,5 +1,5 @@
-import WorkflowBuilder from './components/WorkflowBuilder'
+import App from './components/App'
 
 export default function Home() {
-  return <WorkflowBuilder />
+  return <App />
 }
