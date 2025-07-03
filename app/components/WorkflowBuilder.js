@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Sparkles, User } from 'lucide-react';
+import { Plus, Sparkles, User, ArrowLeft } from 'lucide-react';
 
-const WorkflowBuilder = () => {
-  const [workflowId, setWorkflowId] = useState(null);
+const WorkflowBuilder = ({ workflowId: initialWorkflowId = null, onNavigateBack }) => {
+  const [workflowId, setWorkflowId] = useState(initialWorkflowId);
   const [workflowTitle, setWorkflowTitle] = useState('');
   const [steps, setSteps] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -12,46 +12,66 @@ const WorkflowBuilder = () => {
 
   // Load existing workflow data on component mount
   useEffect(() => {
-    loadWorkflows();
-  }, []);
-
-  const loadWorkflows = async () => {
-    try {
-      const response = await fetch('/api/workflows');
-      const result = await response.json();
-      
-      if (result.workflows && result.workflows.length > 0) {
-        // Load the most recent workflow (first in the array since they're ordered by createdAt desc)
-        const latestWorkflow = result.workflows[0];
-        setWorkflowId(latestWorkflow.id);
-        setWorkflowTitle(latestWorkflow.title);
-        setSteps(latestWorkflow.steps);
-      } else {
-        // No existing workflows, set up default data
-        setWorkflowTitle('After discovery calls');
-        setSteps([
-          {
-            id: Date.now(),
-            instruction: 'At 8pm, pull all the Gong recordings from the rep\'s discovery calls that day. Filter to only deals which have a next step set in Salesforce',
-            executor: 'ai'
-          }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error loading workflows:', error);
-      // Fallback to default data
-      setWorkflowTitle('After discovery calls');
-      setSteps([
-        {
-          id: Date.now(),
-          instruction: 'At 8pm, pull all the Gong recordings from the rep\'s discovery calls that day. Filter to only deals which have a next step set in Salesforce',
-          executor: 'ai'
-        }
-      ]);
-    } finally {
-      setIsLoading(false);
+    if (initialWorkflowId) {
+      loadSpecificWorkflow(initialWorkflowId);
+    } else {
+      loadLatestWorkflow();
     }
-  };
+  }, [initialWorkflowId]);
+
+ const loadSpecificWorkflow = async (id) => {
+  try {
+    const response = await fetch(`/api/workflows/${id}`);
+    const result = await response.json();
+    
+    if (result.workflow) {
+      setWorkflowTitle(result.workflow.title);
+      setSteps(result.workflow.steps);
+    } else {
+      console.error('Workflow not found');
+      setDefaultWorkflow();
+    }
+  } catch (error) {
+    console.error('Error loading workflow:', error);
+    setDefaultWorkflow();
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const loadLatestWorkflow = async () => {
+  try {
+    const response = await fetch('/api/workflows');
+    const result = await response.json();
+    
+    if (result.workflows && result.workflows.length > 0) {
+      // Load the most recent workflow (first in the array since they're ordered by createdAt desc)
+      const latestWorkflow = result.workflows[0];
+      setWorkflowId(latestWorkflow.id);
+      setWorkflowTitle(latestWorkflow.title);
+      setSteps(latestWorkflow.steps);
+    } else {
+      // No existing workflows, set up default data
+      setDefaultWorkflow();
+    }
+  } catch (error) {
+    console.error('Error loading workflows:', error);
+    setDefaultWorkflow();
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const setDefaultWorkflow = () => {
+  setWorkflowTitle('After discovery calls');
+  setSteps([
+    {
+      id: Date.now(),
+      instruction: 'At 8pm, pull all the Gong recordings from the rep\'s discovery calls that day. Filter to only deals which have a next step set in Salesforce',
+      executor: 'ai'
+    }
+  ]);
+};
 
   const addStep = () => {
     const newStep = {
@@ -137,6 +157,13 @@ const WorkflowBuilder = () => {
           setWorkflowId(result.id);
         }
         alert('Workflow saved successfully!');
+        
+        // If we have a navigation callback and this is a new workflow, navigate back
+        if (onNavigateBack && !initialWorkflowId) {
+          setTimeout(() => {
+            onNavigateBack();
+          }, 1000);
+        }
       } else {
         alert('Error saving workflow: ' + result.error);
       }
@@ -161,8 +188,19 @@ const WorkflowBuilder = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-2xl mx-auto">
-        {/* Workflow Title */}
+        {/* Header with Back Button */}
         <div className="mb-8">
+          {onNavigateBack && (
+            <button
+              onClick={onNavigateBack}
+              className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 mb-4 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back to Workflows</span>
+            </button>
+          )}
+          
+          {/* Workflow Title */}
           <input
             type="text"
             value={workflowTitle}
